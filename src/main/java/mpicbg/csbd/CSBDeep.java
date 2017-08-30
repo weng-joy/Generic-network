@@ -8,10 +8,29 @@
 
 package mpicbg.csbd;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Array;
+import java.util.Arrays;
+import java.util.List;
 
 import javax.swing.JOptionPane;
+
+import net.imagej.Dataset;
+import net.imagej.ImageJ;
+import net.imagej.ops.OpService;
+import net.imagej.tensorflow.TensorFlowService;
+import net.imglib2.Cursor;
+import net.imglib2.RandomAccess;
+import net.imglib2.img.array.ArrayImg;
+import net.imglib2.img.array.ArrayImgs;
+import net.imglib2.img.basictypeaccess.array.FloatArray;
+import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.real.FloatType;
 
 import org.scijava.Cancelable;
 import org.scijava.ItemIO;
@@ -32,15 +51,6 @@ import org.tensorflow.Tensor;
 import org.tensorflow.TensorFlowException;
 import org.tensorflow.framework.MetaGraphDef;
 import org.tensorflow.framework.SignatureDef;
-
-import com.google.protobuf.InvalidProtocolBufferException;
-
-import net.imagej.Dataset;
-import net.imagej.ImageJ;
-import net.imagej.ops.OpService;
-import net.imagej.tensorflow.TensorFlowService;
-import net.imglib2.Cursor;
-import net.imglib2.type.numeric.RealType;
 
 /**
  */
@@ -238,23 +248,27 @@ public class CSBDeep<T extends RealType<T>> implements Command, Previewable, Can
 		
 		MappingDialog.create(bridge, sig);
 	}
+	private static long[] reversedDims(long[] inputdims) {
+		final long[] dims = new long[inputdims.length];
+		for (int d = 0; d < dims.length; d++) {
+			dims[dims.length - d - 1] = inputdims[d];
+		}
+		return dims;
+	}
 
 	@Override
     public void run() {
 		
 //		System.out.println("run");
 		
-//		Dataset input_norm = input.duplicateBlank();
-		
-//		opService.run(PercentileNormalization.class, input_norm.getImgPlus(), input.getImgPlus(), percentile);
-//		uiService.show(input_norm);
+//		Dataset input_norm = input.duplicate();
 		
 		if(graph == null){
 			modelChanged();
 		}
 
 		try (
-			final Tensor image = arrayToTensor(datasetToArray(input));
+			final Tensor image = datasetToArray(input);
 		)
 		{
 			outputImage = executeGraph(getGraph(), image);	
@@ -265,41 +279,135 @@ public class CSBDeep<T extends RealType<T>> implements Command, Previewable, Can
 		
     }
 	
-	private float[][][][][] datasetToArray(final Dataset d) {
-				
-		final float[][][][][] inputarr = bridge.createFakeTFArray();
+	public List<Double> getPercentileValues(Dataset d, List<Double> percentiles){
+		List<Double> percentileValues = null;
+		
+		
+		return percentileValues;
+	}
+	
 	/*
 	 * create 5D array from dataset (unused dimensions get size 1)
 	 */
-
-		//copy input data to array
+	private Tensor datasetToArray(final Dataset d) {
 		
-		final Cursor<T> cursor = (Cursor<T>) d.localizingCursor();
-		while( cursor.hasNext() )
-		{
-			final int[] pos = {0,0,0,0,0};
-			final T val = cursor.next();
-			for(int i = 0; i < pos.length; i++){
-				final int imgIndex = bridge.getDatasetDimIndexByTFIndex(i);
-				if(imgIndex >= 0){
-					pos[i] = cursor.getIntPosition(imgIndex);
-				}
-			}
-			final float fval = val.getRealFloat();
-//			System.out.println("pos " + pos[0] + " " + pos[1] + " " + pos[2] + " " + pos[3] + " " + pos[4]);
-			inputarr[pos[0]][pos[1]][pos[2]][pos[3]][pos[4]] = fval;
-			
+		bridge.updatedMapping();
+		
+		long[] finalDim = bridge.getFinalInputTensorShape();
+		final ArrayImg<FloatType, FloatArray> dest = ArrayImgs.floats(finalDim);
+		final Cursor<FloatType> destCursor = dest.localizingCursor();
+		RandomAccess<RealType<?>> source = d.randomAccess();
+		
+		System.out.println("datasetToArray");
+		System.out.print("dest dimension: ");
+		for(long dim : finalDim){
+			System.out.print(dim + " ");
 		}
+		System.out.println();
+		System.out.print("source dimension: ");
+		for(int i = 0; i < d.numDimensions(); i++){
+			System.out.print(d.dimension(i) + " ");
+		}
+		System.out.println();
+
+//		if (min == min && max == max) {
+//			// Normalize the data.
+//			final double range = max - min;
+//			while (destCursor.hasNext()) {
+//				destCursor.fwd();
+//				source.setPosition(destCursor);
+//				final double value = (source.get().getRealDouble() - min) / range;
+//				destCursor.get().setReal(value);
+//			}
+//		}
+//		else {
+			// Do not perform normalization.
 		
-		return inputarr;
+			int[] lookup = new int[source.numDimensions()];
+			for(int i = 0; i < lookup.length; i++){
+				lookup[i] = bridge.getTFIndexByDatasetDimIndex(i);
+			}
+			System.out.println();
+			System.out.print("lookup: ");
+			for(int i = 0; i < lookup.length; i++){
+				System.out.print(lookup[i] + " ");
+			}
+			System.out.println();
+			
+			System.out.println();
+			System.out.print("dest: ");
+			for(int i = 0; i < dest.numDimensions(); i++){
+				System.out.print(dest.dimension(i) + " ");
+			}
+			System.out.println();
+
+			int[] finaldimi = new int[finalDim.length];
+			for(int i = 0; i < finalDim.length; i++){
+				finaldimi[i] = (int)finalDim[i];
+			}
+			Object multiDimArray = Array.newInstance(Float.class, finaldimi);
+			
+			while( destCursor.hasNext() )
+			{
+				
+				int[] posdest = new int[dest.numDimensions()];
+//				System.out.print("posdest: ");
+				for(int i = 0; i < posdest.length; i++){
+					posdest[i] = Math.max(0,destCursor.getIntPosition(i));
+//					System.out.print(posdest[i] + " ");
+//					System.out.print(" (dimension " + dest.dimension(i) + ") ");
+				}
+//				System.out.println();
+				
+				destCursor.fwd();
+				int[] pos = new int[source.numDimensions()];
+//				System.out.print("pos: ");
+				for(int i = 0; i < pos.length; i++){
+					pos[i] = destCursor.getIntPosition(lookup[i]);
+//					System.out.print(pos[i] + " ");
+				}
+				source.setPosition(pos);
+				final double dval = source.get().getRealDouble();
+//				System.out.println(" val: " + dval);
+//				System.out.println("pos " + pos[0] + " " + pos[1] + " " + pos[2] + " " + pos[3] + " " + pos[4]);
+				setValue(multiDimArray, new Float(dval), posdest);
+				destCursor.get().setReal(dval);
+			}
+			
+			uiService.show(dest);
+			
+//		}
+			
+//			float[] res = dest.update(null).getCurrentStorageArray();
+//			try {
+//				write("/home/random/test-res.txt", res);
+//			} catch (IOException exc) {
+//				// TODO Auto-generated catch block
+//				exc.printStackTrace();
+//			}
+			
+//			FloatBuffer buf = FloatBuffer.wrap(res);
+			return Tensor.create(multiDimArray);
+		
 	}
 	
-	private Tensor arrayToTensor(final float[][][][][] array){
-		if(bridge.getInputTensorShape().numDimensions() == 4){
-			return Tensor.create(array[0]);
-		}		
-		return Tensor.create(array);
-	}
+	public static int[] tail(int[] arr) {
+        return Arrays.copyOfRange(arr, 1, arr.length);
+    }
+
+    public static void setValue(Object array, float value, int... indices) {
+        if (indices.length == 1)
+            ((Float[]) array)[indices[0]] = value;
+        else
+            setValue(Array.get(array, indices[0]), value, tail(indices));
+    }
+	
+	public static void write (String filename, float[]x) throws IOException{
+		  BufferedWriter outputWriter = new BufferedWriter(new FileWriter(filename));
+		  outputWriter.write(Arrays.toString(x));
+		  outputWriter.flush();  
+		  outputWriter.close();  
+		}
 	
 	/*
 	 * runs graph on input tensor
@@ -348,12 +456,19 @@ public class CSBDeep<T extends RealType<T>> implements Command, Previewable, Can
 			}
 			
 			if(output_t != null){
+				
 				System.out.println("Output tensor with " + output_t.numDimensions() + " dimensions");
 				
 				if(output_t.numDimensions() == 0){
 					showError("Output tensor has no dimensions");
 					return null;
 				}
+				
+//				FloatBuffer resvals = null;
+//				output_t.writeTo(resvals);
+//				
+//				final ArrayImg<FloatType, FloatArray> resimg = ArrayImgs.floats(resvals.array(), output_t.shape());
+				
 				
 				
 				
@@ -366,9 +481,7 @@ public class CSBDeep<T extends RealType<T>> implements Command, Previewable, Can
 					System.out.println("output dim " + i + ": " + output_t.shape()[i]);
 				}
 				
-				if(output_t.numDimensions() -1 == bridge.getInputTensorShape().numDimensions()){
-					//model reduces dim by 1
-					//assume z gets reduced -> move it to front and ignore first dimension
+				if(output_t.numDimensions() -1 == bridge.getInitialInputTensorShape().numDimensions()){
 					/*
 					 * model reduces dim by 1
 					 * assume z gets reduced -> move it to front and ignore first dimension
@@ -442,7 +555,8 @@ public class CSBDeep<T extends RealType<T>> implements Command, Previewable, Can
         final ImageJ ij = new ImageJ();
 
         // ask the user for a file to open
-        final File file = ij.ui().chooseFile(null, "open");
+//        final File file = ij.ui().chooseFile(null, "open");
+        final File file = new File("/home/random/input.png");
         
         if(file.exists()){
             // load the dataset

@@ -1,13 +1,13 @@
 package mpicbg.csbd;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
-
-import org.tensorflow.Shape;
-import org.tensorflow.Tensor;
 
 import net.imagej.Dataset;
 import net.imagej.axis.Axes;
+
+import org.tensorflow.Shape;
+import org.tensorflow.Tensor;
 
 public class DatasetTensorBridge {
 
@@ -25,6 +25,8 @@ public class DatasetTensorBridge {
 	private final String[] datasetDimNames;
     private final int[] datasetDimIndices;
     private final long[] datasetDimLengths;
+    private final int[] inputDimLUT;
+    private final int[] inputToTF;
 	private final int[] dimMapping = { UNSET, UNSET, UNSET, UNSET, UNSET };
     private boolean mappingInitialized = false;
     private List<Integer> tfToInput;
@@ -50,6 +52,46 @@ public class DatasetTensorBridge {
 		datasetDimLengths[Z] = image.getDepth();
 		datasetDimLengths[C] = image.getChannels();
 		datasetDimLengths[T] = image.getFrames();
+		inputDimLUT = new int[image.numDimensions()];
+		for(int i = 0; i < inputDimLUT.length; i++){
+			boolean found = false;
+			for(int j = 0; j < datasetDimIndices.length; j++){
+				if(datasetDimIndices[j] == i){
+					inputDimLUT[i] = j;				
+					found = true;
+				}
+			}
+			if(!found){
+				System.err.println("unrecognized input dataset dimension");
+			}
+		}
+		inputToTF = new int[image.numDimensions()];
+		tfToInput = new ArrayList<>();
+    }
+    
+    public void updatedMapping(){
+    	tfToInput.clear();
+    	System.out.print("tftoinput: ");
+    	for(int j = 0; j < dimMapping.length; j++){
+			if(dimMapping[j] >= 0){
+				tfToInput.add(datasetDimIndices[dimMapping[j]]);
+				System.out.print(datasetDimIndices[dimMapping[j]] + " ");
+			}
+		}
+    	System.out.println();
+    	
+    	
+    	if(tfToInput.size() != initialInputTensorShape.numDimensions()){
+    		System.err.println("updatedMapping: mapping is strange");
+    	}
+    	
+    	printMapping();
+    	System.out.print("inputtotf: ");
+    	for(int i = 0; i < dataset.numDimensions(); i++){
+    		inputToTF[i] = getIndexByValIgnoreNegatives(dimMapping, inputDimLUT[i]);
+    		System.out.print(inputToTF[i] + " " + "( inputdimlut[i]: " + inputDimLUT[i] + ") ");
+		}
+    	System.out.println();
     }
 
     public long getDatasetDimLengthFromTFIndex(final int tfIndex5D){
@@ -65,6 +107,14 @@ public class DatasetTensorBridge {
 		}
 		return datasetDimIndices[dimMapping[tfIndex5D]];
 	}
+    
+    public int getInputDimIndexByTFIndex(final int tfIndex){
+		return tfToInput.get(tfIndex);
+	}
+    
+    public int getTFIndexByDatasetDimIndex(final int datasetDimIndex){
+    	return inputToTF[datasetDimIndex];
+    }
 
 	public boolean isMappingInitialized() {
 		return mappingInitialized;
@@ -116,6 +166,7 @@ public class DatasetTensorBridge {
 				}
 			}
 		}
+		updatedMapping();
 	}
 
     public void setInputTensorShape(final Shape shape){
@@ -125,6 +176,20 @@ public class DatasetTensorBridge {
     public Shape getInitialInputTensorShape() {
 		return initialInputTensorShape;
 	}
+    
+    public long[] getFinalInputTensorShape() {
+    	long[] res = new long[initialInputTensorShape.numDimensions()];
+    	int count = 0;
+		for(int i = 0; i < dimMapping.length; i++){
+			if(dimMapping[i] >= 0){
+				if(count >= res.length){
+					System.err.println("ERROR");
+				}
+				res[count] = getDatasetDimLengthFromTFIndex(i);
+				count++;
+			}
+		}
+		return res;
 	}
 
     public int numDimensions(){

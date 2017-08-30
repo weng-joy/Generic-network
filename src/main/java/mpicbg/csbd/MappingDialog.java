@@ -104,6 +104,7 @@ public class MappingDialog {
 					System.out.println("selected index for tf index " + i + ": " + drops.get(i).getSelectedIndex());
 					bridge.setMappingInputTensorDim(i, drops.get(i).getSelectedIndex());
 				}
+				bridge.updatedMapping();
 				bridge.printMapping();
 			}	
 		}else{
