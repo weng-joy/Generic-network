@@ -121,6 +121,7 @@ public class MappingDialog {
 									i ).getSelectedIndex() );
 					bridge.setMappingInputTensorDim( i, drops.get( i ).getSelectedIndex() );
 				}
+				bridge.updatedMapping();
 				bridge.printMapping();
 			}
 		} else {

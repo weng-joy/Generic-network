@@ -40,9 +40,9 @@ import org.tensorflow.framework.MetaGraphDef;
 import org.tensorflow.framework.SignatureDef;
 
 import mpicbg.csbd.normalize.PercentileNormalizer;
+import mpicbg.csbd.tensorflow.ArrayImgDatasetConverter;
 import mpicbg.csbd.tensorflow.DatasetConverter;
 import mpicbg.csbd.tensorflow.DatasetTensorBridge;
-import mpicbg.csbd.tensorflow.DefaultDatasetConverter;
 import mpicbg.csbd.tensorflow.TensorFlowRunner;
 import mpicbg.csbd.ui.MappingDialog;
 
@@ -100,7 +100,7 @@ public class AnyNetwork< T extends RealType< T > > extends PercentileNormalizer
 	private DatasetTensorBridge bridge;
 	private boolean hasSavedModel = true;
 	private boolean processedDataset = false;
-	private final DatasetConverter datasetConverter = new DefaultDatasetConverter();
+	private final DatasetConverter datasetConverter = new ArrayImgDatasetConverter();
 
 	// Same as
 	// tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY

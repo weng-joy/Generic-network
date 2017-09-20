@@ -34,9 +34,9 @@ import org.tensorflow.framework.MetaGraphDef;
 import org.tensorflow.framework.SignatureDef;
 
 import mpicbg.csbd.normalize.PercentileNormalizer;
+import mpicbg.csbd.tensorflow.ArrayImgDatasetConverter;
 import mpicbg.csbd.tensorflow.DatasetConverter;
 import mpicbg.csbd.tensorflow.DatasetTensorBridge;
-import mpicbg.csbd.tensorflow.DefaultDatasetConverter;
 import mpicbg.csbd.tensorflow.TensorFlowRunner;
 
 public class CSBDeepCommand< T extends RealType< T > > extends PercentileNormalizer {
@@ -73,7 +73,7 @@ public class CSBDeepCommand< T extends RealType< T > > extends PercentileNormali
 	protected boolean hasSavedModel = true;
 	protected boolean processedDataset = false;
 
-	private final DatasetConverter datasetConverter = new DefaultDatasetConverter();
+	private final DatasetConverter datasetConverter = new ArrayImgDatasetConverter();
 
 	// Same as
 	// tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY
